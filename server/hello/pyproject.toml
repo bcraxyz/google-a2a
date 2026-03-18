@@ -1,0 +1,20 @@
+[project]
+name = "hello-a2a-server"
+version = "0.1.0"
+description = "Hello A2A server: public hello + authenticated roll_dice"
+requires-python = ">=3.12"
+dependencies = [
+    "a2a-sdk>=0.3.25",
+    "pydantic>=2.12.5",
+    "python-dotenv>=1.2.1",
+    "starlette>=0.52.1",
+    "sse-starlette>=3.3.2",
+    "uvicorn>=0.42.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["hello"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
