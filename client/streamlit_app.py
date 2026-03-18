@@ -74,7 +74,7 @@ if "extended_card" not in st.session_state:
 with st.sidebar:
     st.title("💬 A2A Chatbot")
 
-    with st.expander("⚙️ A2A Connection", expanded=True):
+    with st.expander("⚙️ Connection", expanded=True):
         server_url = st.text_input(
             "Agent URL",
             value=os.environ.get("AGENT_BASE_URL", "http://localhost:8080"),
