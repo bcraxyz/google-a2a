@@ -43,6 +43,21 @@ def make_request(text: str, token: str | None = None) -> SendMessageRequest:
         ),
     )
 
+async def fetch_oauth_token(issuer: str, audience: str, client_id: str, client_secret: str) -> str:
+    token_url = f"{issuer.rstrip('/')}/oauth/token"
+    async with httpx.AsyncClient() as http:
+        resp = await http.post(
+            token_url,
+            json={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "audience": audience,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["access_token"]
+
 async def fetch_cards(url: str, token: str | None):
     async with httpx.AsyncClient() as http:
         resolver = A2ACardResolver(httpx_client=http, base_url=url)
@@ -70,6 +85,8 @@ if "agent_card" not in st.session_state:
     st.session_state.agent_card = None
 if "extended_card" not in st.session_state:
     st.session_state.extended_card = None
+if "active_token" not in st.session_state:
+    st.session_state.active_token = None
 
 with st.sidebar:
     st.title("💬 A2A Chatbot")
@@ -79,13 +96,45 @@ with st.sidebar:
             "Agent URL",
             value=os.environ.get("AGENT_BASE_URL", "http://localhost:8080"),
         )
-        enable_auth = st.checkbox("Enable Authentication", value=False)
-        token_input = st.text_input(
-            "Bearer Token",
-            value=os.environ.get("AGENT_API_TOKEN", ""),
-            type="password",
-            disabled=not enable_auth,
+
+        auth_method = st.selectbox(
+            "Authentication Method",
+            ["None", "API Token", "OAuth 2.0"],
         )
+        
+        # API Token fields
+        if auth_method == "API Token":
+            api_token = st.text_input(
+                "Bearer Token",
+                value=os.environ.get("AGENT_API_TOKEN", ""),
+                type="password",
+            )
+        else:
+            api_token = None
+ 
+        # OAuth fields
+        if auth_method == "OAuth 2.0":
+            oauth_issuer = st.text_input(
+                "Issuer URL",
+                value=os.environ.get("OAUTH_ISSUER", ""),
+                placeholder="https://your-tenant.auth0.com",
+            )
+            oauth_audience = st.text_input(
+                "Audience",
+                value=os.environ.get("OAUTH_AUDIENCE", ""),
+                placeholder="https://your-agent-url",
+            )
+            oauth_client_id = st.text_input(
+                "Client ID",
+                value=os.environ.get("OAUTH_CLIENT_ID", ""),
+            )
+            oauth_client_secret = st.text_input(
+                "Client Secret",
+                value=os.environ.get("OAUTH_CLIENT_SECRET", ""),
+                type="password",
+            )
+        else:
+            oauth_issuer = oauth_audience = oauth_client_id = oauth_client_secret = None
 
         col1, col2 = st.columns(2)
         with col1:
@@ -127,12 +176,31 @@ with st.sidebar:
         st.rerun()
 
 if connect_btn:
-    token = token_input if enable_auth else None
     with st.spinner("Connecting…"):
         try:
+            token = None
+ 
+            if auth_method == "API Token":
+                token = api_token or None
+ 
+            elif auth_method == "OAuth 2.0":
+                missing = [k for k, v in {
+                    "Issuer URL": oauth_issuer,
+                    "Audience": oauth_audience,
+                    "Client ID": oauth_client_id,
+                    "Client Secret": oauth_client_secret,
+                }.items() if not v]
+                if missing:
+                    st.error(f"Missing OAuth fields: {', '.join(missing)}")
+                    st.stop()
+                token = asyncio.run(
+                    fetch_oauth_token(oauth_issuer, oauth_audience, oauth_client_id, oauth_client_secret)
+                )
+                
             public_card, extended_card = asyncio.run(fetch_cards(server_url, token))
             st.session_state.agent_card = public_card
             st.session_state.extended_card = extended_card
+            st.session_state.active_token = token
             st.session_state.connected = True
             st.session_state.messages = []
             st.rerun()
@@ -143,6 +211,7 @@ if disconnect_btn:
     st.session_state.connected = False
     st.session_state.agent_card = None
     st.session_state.extended_card = None
+    st.session_state.active_token = None
     st.session_state.messages = []
     st.rerun()
 
@@ -152,10 +221,8 @@ for msg in st.session_state.messages:
 
 if prompt := st.chat_input("Type your message…"):
     if not st.session_state.connected:
-        st.warning("Enter the agent URL in the sidebar and click **Connect** to start chatting.")
+        st.warning("Provide the agent URL in the sidebar and click **Connect** to start chatting.")
     else:
-        token = token_input if enable_auth else None
-
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -163,7 +230,9 @@ if prompt := st.chat_input("Type your message…"):
         with st.chat_message("assistant"):
             with st.spinner("Thinking…"):
                 try:
-                    reply = asyncio.run(send_message(prompt, token))
+                    reply = asyncio.run(
+                        send_message(prompt, st.session_state.active_token)
+                    )
                     st.markdown(reply)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
