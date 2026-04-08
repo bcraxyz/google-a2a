@@ -1,0 +1,22 @@
+[project]
+name = "hello-a2a-oauth"
+version = "0.1.0"
+description = "Hello A2A agent: public hello + OAuth-authenticated roll_dice"
+requires-python = ">=3.13"
+dependencies = [
+    "a2a-sdk>=0.3.25",
+    "pydantic>=2.12.5",
+    "python-dotenv>=1.2.1",
+    "starlette>=0.52.1",
+    "sse-starlette>=3.3.2",
+    "uvicorn>=0.42.0",
+    "PyJWT>=2.12.1",
+    "cryptography>=46.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
