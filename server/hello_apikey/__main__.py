@@ -1,9 +1,11 @@
 import os
 import uvicorn
+
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
+
 from agent_executor import HelloAgentExecutor
 
 hello_skill = AgentSkill(
@@ -25,9 +27,10 @@ dice_skill = AgentSkill(
 _base_url = os.environ.get("AGENT_BASE_URL")
 
 public_agent_card = AgentCard(
-    name="Hello Agent",
-    description="Simple A2A server with a public hello skill and an authenticated dice-rolling skill.",
+    name="Hello A2A",
+    description="Simple agent with a public hello skill and an authenticated dice-rolling skill.",
     url=_base_url,
+    iconUrl="https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@main/png/128/emoji_u1f44b.png",
     version="1.0.0",
     default_input_modes=["text/plain"],
     default_output_modes=["text/plain"],
@@ -38,26 +41,27 @@ public_agent_card = AgentCard(
 
 extended_agent_card = public_agent_card.model_copy(
     update={
-        "name": "Hello Agent (Authenticated)",
-        "description": "Full-featured A2A server including the dice-rolling skill.",
+        "name": "Hello A2A (Authenticated)",
+        "description": "Full-featured agent including the dice-rolling skill.",
         "version": "1.0.0",
         "skills": [hello_skill, dice_skill],
     }
 )
 
-if __name__ == "__main__":
-    host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", "8080"))
-
-    request_handler = DefaultRequestHandler(
+request_handler = DefaultRequestHandler(
         agent_executor=HelloAgentExecutor(),
         task_store=InMemoryTaskStore(),
     )
 
-    server = A2AStarletteApplication(
-        agent_card=public_agent_card,
-        http_handler=request_handler,
-        extended_agent_card=extended_agent_card,
-    )
+server = A2AStarletteApplication(
+    agent_card=public_agent_card,
+    http_handler=request_handler,
+    extended_agent_card=extended_agent_card,
+)
 
-    uvicorn.run(server.build(), host=host, port=port)
+app = server.build()
+
+if __name__ == "__main__":
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8080"))
+    uvicorn.run(app, host=host, port=port)
