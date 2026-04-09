@@ -62,7 +62,8 @@ async def fetch_oauth_token(issuer: str, audience: str, client_id: str, client_s
                 "grant_type": "client_credentials",
                 "client_id": client_id,
                 "client_secret": client_secret,
-                "audience": audience,
+                "audience": audience,              # Auth0
+                "scope": f"{audience}/.default",   # Entra
             },
         )
         resp.raise_for_status()
