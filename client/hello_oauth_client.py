@@ -58,14 +58,15 @@ async def fetch_oauth_token() -> str:
 
         resp = await http.post(
             token_url,
-            json={
+            data={
                 "grant_type": "client_credentials",
                 "client_id": OAUTH_CLIENT_ID,
                 "client_secret": OAUTH_CLIENT_SECRET,
-                "audience": OAUTH_AUDIENCE,
+                "scope": f"{OAUTH_AUDIENCE}/.default",
             },
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            raise RuntimeError(f"Token request failed ({resp.status_code}): {resp.text}")
         return resp.json()["access_token"]
 
 def make_request(text: str, token: str | None = None) -> SendMessageRequest:
