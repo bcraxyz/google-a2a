@@ -66,7 +66,9 @@ async def fetch_oauth_token(issuer: str, audience: str, client_id: str, client_s
                 "scope": f"{audience}/.default",   # Entra
             },
         )
-        resp.raise_for_status()
+        
+        if not resp.is_success:
+            raise RuntimeError(f"Token request failed ({resp.status_code}): {resp.text}")
         return resp.json()["access_token"]
 
 async def fetch_cards(url: str, token: str | None):
