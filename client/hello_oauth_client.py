@@ -38,7 +38,6 @@ logging.getLogger("a2a").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-
 def extract_text(resp) -> str:
     try:
         for part in resp.root.result.parts:
@@ -49,11 +48,14 @@ def extract_text(resp) -> str:
         pass
     return str(resp.model_dump(mode="json", exclude_none=True))
 
-
 async def fetch_oauth_token() -> str:
-    """Fetches an access token via OAuth 2.0 client credentials flow."""
-    token_url = f"{OAUTH_ISSUER.rstrip('/')}/oauth/token"
+    """Fetches an access token via OAuth 2.0 client credentials flow using OIDC discovery."""
+    issuer = OAUTH_ISSUER.rstrip("/")
     async with httpx.AsyncClient() as http:
+        discovery = await http.get(f"{issuer}/.well-known/openid-configuration")
+        discovery.raise_for_status()
+        token_url = discovery.json()["token_endpoint"]
+
         resp = await http.post(
             token_url,
             json={
@@ -65,7 +67,6 @@ async def fetch_oauth_token() -> str:
         )
         resp.raise_for_status()
         return resp.json()["access_token"]
-
 
 def make_request(text: str, token: str | None = None) -> SendMessageRequest:
     metadata = {"Authorization": f"Bearer {token}"} if token else {}
@@ -80,7 +81,6 @@ def make_request(text: str, token: str | None = None) -> SendMessageRequest:
             metadata=metadata,
         ),
     )
-
 
 async def main() -> None:
     async with httpx.AsyncClient() as http:
@@ -118,7 +118,6 @@ async def main() -> None:
         log.info("\n── Roll dice (with OAuth token) ──")
         resp = await client.send_message(make_request("roll 3", token=token))
         print(extract_text(resp))
-
 
 if __name__ == "__main__":
     asyncio.run(main())
