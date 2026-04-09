@@ -51,7 +51,6 @@ def make_request(text: str, token: str | None = None) -> SendMessageRequest:
 
 async def fetch_oauth_token(issuer: str, audience: str, client_id: str, client_secret: str, scope=None) -> str:
     effective_scope = scope if scope else f"{audience}/.default"
-    st.session_state["debug_scope"] = effective_scope
     discovery_url = issuer.rstrip("/") + "/.well-known/openid-configuration"
     async with httpx.AsyncClient() as http:
         discovery = await http.get(discovery_url)
@@ -64,12 +63,20 @@ async def fetch_oauth_token(issuer: str, audience: str, client_id: str, client_s
                 "grant_type": "client_credentials",
                 "client_id": client_id,
                 "client_secret": client_secret,
-                "scope": scope if scope else f"{audience}/.default",
+                "scope": effective_scope,
             },
         )
         if not resp.is_success:
             raise RuntimeError(f"Token request failed ({resp.status_code}): {resp.text}")
-        return resp.json()["access_token"]
+        #return resp.json()["access_token"]
+        token = resp.json()["access_token"]
+        import base64, json as _json
+        payload = token.split(".")[1]
+        payload += "=" * (4 - len(payload) % 4)
+        claims = _json.loads(base64.b64decode(payload))
+        st.session_state["debug_token_aud"] = claims.get("aud")
+        st.session_state["debug_token_iss"] = claims.get("iss")
+        return token
 
 async def fetch_cards(url: str, token: str | None):
     async with httpx.AsyncClient() as http:
@@ -103,8 +110,9 @@ if "active_token" not in st.session_state:
 if "last_auth_method" not in st.session_state:
     st.session_state.last_auth_method = "None"
 
-if "debug_scope" in st.session_state:
-    st.sidebar.write(f"DEBUG scope: '{st.session_state.debug_scope}'")
+if "debug_token_aud" in st.session_state:
+    st.sidebar.write(f"token aud: '{st.session_state.debug_token_aud}'")
+    st.sidebar.write(f"token iss: '{st.session_state.debug_token_iss}'")
 
 with st.sidebar:
     st.title("💬 A2A Chatbot")
